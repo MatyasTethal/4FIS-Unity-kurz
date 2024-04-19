@@ -1,0 +1,116 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Player : MonoBehaviour // POZOR class si vždy pojmenuj stejně jak se jmenuje název tvého scriptu
+{
+    private Rigidbody2D rb;
+    private float horizontal;
+    public float speed = 6f; // public nám umožní si s proměnou měnit přímo v unity při hraní
+    public float jumpingpower = 5f;
+    private bool isFacingRight = true;
+
+    private float coyoteTime = 0.1f; // doba, po kterou umožníme hráči vyskočit, i když už je za hranou platformy
+    private float coyoteTimeCounter;
+
+    public float jumpBufferTime = 0.1f; // doba, kterou odpustíme hráči, že moc brzo před dopadem zmáčkl SPACE
+    public float jumpBufferCounter;
+
+    private Vector2 startPosition;
+
+    public Transform groundCheck;
+    public LayerMask groundLayer;
+    public LayerMask spikeLayer;
+    public LayerMask borderLayer;
+
+    public AudioSource spikeSound; // AudioSource který si pojmenujeme a musíme do něho vložit v unity komponentu odkaz na audio file
+    public AudioSource fallSound;
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        rb = GetComponent<Rigidbody2D>(); // definujeme si rb jako odkaz na komponent Rigidbody2D
+        transform.position = startPosition; // momentální pozice se uloží jako startovní pozice
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        horizontal = Input.GetAxisRaw("Horizontal");  // GetAxisRaw nám kontroluje zmáčkuté klávesy (nebo jiné ovládání), doleva -1, doprava 1, nic nemačkám 0    
+        rb.velocity = new Vector2(horizontal * speed, rb.velocity.y); // měníme rychlost objektu na nový Vector2, vektor má X souřadnici rychlost a jako Y souřadnici necháme momentální souřadnici co tam je
+        
+
+        if (Input.GetButtonDown("Jump")) // pokud zmáčknu tlačítko označení v Input Manageru Unity jako "Jump"
+        {
+            jumpBufferCounter = jumpBufferTime; // resetuju jumpBufferCounter
+        }
+
+        else
+        {
+            jumpBufferCounter -= Time.deltaTime; // začne tikat časovač jumpBufferCounteru
+        }
+
+        if (IsGrounded()) 
+        {
+            coyoteTimeCounter = coyoteTime; // resetuju coyoteTime
+        }
+        else
+        {
+            coyoteTimeCounter -= Time.deltaTime; // pokud nejsem na zemi, coyoteTime časovač začne tikat
+        }
+
+        if (coyoteTimeCounter > 0f && jumpBufferCounter > 0f) // pokud coyotime time ještě neuběhl a zaroveň neuběhl ani jumpBufferCounter
+        {
+            rb.velocity = new Vector2(rb.velocity.x, jumpingpower); // změním rychlost na nový Vector2, X souřadnici nechám co tam je a skočím o velikost jumpingpower (změním Y souřadnici)
+            coyoteTimeCounter = 0f; // nechám oba timery vyprchat, abych nemohl skočit dvakrát
+            jumpBufferCounter = 0f;
+        }
+
+        Flip();
+
+        if (IsSpiked()) // pokud se nabodnu na spike
+        {
+            spikeSound.Play(); // zahraju zvuk co mám definovaný jako zvuk spiku
+            Respawn(); // respawnu se
+        }
+
+        if (FallsOff()) // pokud spadnu do voidu
+        {
+            fallSound.Play(); // zahraju zvuk pádu
+            Respawn(); // respawnu se
+        }
+
+    }
+
+    private bool IsGrounded() // pokud se tento kruh ground checku (nožiček) dotkne země, bude tato proměnná true
+    {
+        return Physics2D.OverlapCircle(groundCheck.position, 0.2f, groundLayer); // vytvořím kruh na pozici groundCheck.position o velikosti 0,2f, který bude kolidovat z layerem Ground
+    }
+
+    private bool IsSpiked() // pokud se tento kruh ground checku (nožiček) dotkne spiků, bude tato proměnná true
+    {
+        return Physics2D.OverlapCircle(groundCheck.position, 0.3f, spikeLayer);
+    }
+
+    private bool FallsOff() // pokud se tento kruh ground checku (nožiček) dotkne voidu/borderu, bude tato proměnná true
+    {
+        return Physics2D.OverlapCircle(groundCheck.position, 0.2f, borderLayer); 
+    }
+
+
+    private void Flip() // kontroluje flip animaci spritu hráče
+    {
+        if (isFacingRight && horizontal < 0f || !isFacingRight && horizontal > 0f) // pokud se dívám doprava, ale začnu se pohybovat doleva NEBO se dívám doleva a začnu se hýbat doprava, provedu flip
+        {
+            isFacingRight = !isFacingRight; // dívám se teď doprava na místo doleva a nebo naopak
+            Vector3 localScale = transform.localScale; // uložím si momentální Scale jako Vector3 localScale
+            localScale.x *= -1f; // obrátím scale
+            transform.localScale = localScale; // znovu uložím scale, teď už obrácený
+        }
+    }
+
+    public void Respawn()
+    {
+        transform.position = startPosition; // moje momentální pozice se změní na startovací pozici
+    }
+}
